@@ -3,13 +3,13 @@
   "changelog": [
     "@changesets/changelog-github",
     {
-      "repo": "changesets/action"
+      "repo": "JanusHealthInc/changesets-action"
     }
   ],
   "commit": false,
   "linked": [],
   "access": "restricted",
-  "baseBranch": "maintenance/v1",
+  "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "ignore": []
 }
