@@ -1,0 +1,69 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
+
+permissions: {} # each job should define its own permission explicitly
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
+    permissions:
+      contents: write # to create version commits
+      pull-requests: write # to create release pull requests
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/ci-setup
+        with:
+          skip-cache: true # avoid cache poisoning attacks
+
+      - name: Build
+        run: pnpm build
+
+      - name: Create or update release pull request
+        id: changesets
+        uses: ./ # zizmor: ignore[self-repository] -- Requires the dist files built in this job.
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: pnpm bump
+
+  publish:
+    name: Publish
+    if: needs.version.outputs.hasChangesets == 'false'
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # to create release and have it authored by github-actions (changesets/action)
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/ci-setup
+        with:
+          skip-cache: true # avoid cache poisoning attacks
+
+      - name: Build
+        run: pnpm build
+
+      - name: Publish to marketplace
+        uses: ./ # zizmor: ignore[self-repository] -- Requires the dist files built in this job.
+        with:
+          publish: pnpm release

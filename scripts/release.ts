@@ -1,11 +1,12 @@
-const path = require("path");
-const { exec, getExecOutput } = require("@actions/exec");
+import path from "node:path";
+import { exec, getExecOutput } from "@actions/exec";
+import pkgJson from "../package.json" with { type: "json" };
 
-const { version } = require("../package.json");
-const tag = `v${version}`;
-const releaseLine = `v${version.split(".")[0]}`;
+const tag = `v${pkgJson.version}`;
+const releaseLine = `v${pkgJson.version.split(".")[0]}`;
+const isPrerelease = pkgJson.version.includes("-");
 
-process.chdir(path.join(__dirname, ".."));
+process.chdir(path.join(import.meta.dirname, ".."));
 
 (async () => {
   const { exitCode, stderr } = await getExecOutput(
@@ -13,11 +14,11 @@ process.chdir(path.join(__dirname, ".."));
     ["ls-remote", "--exit-code", "origin", "--tags", `refs/tags/${tag}`],
     {
       ignoreReturnCode: true,
-    }
+    },
   );
   if (exitCode === 0) {
     console.log(
-      `Action is not being published because version ${tag} is already published`
+      `Action is not being published because version ${tag} is already published`,
     );
     return;
   }
@@ -30,6 +31,11 @@ process.chdir(path.join(__dirname, ".."));
   await exec("git", ["commit", "-m", tag]);
 
   await exec("changeset", ["tag"]);
+
+  if (isPrerelease) {
+    await exec("git", ["push", "origin", `refs/tags/${tag}`]);
+    return;
+  }
 
   await exec("git", [
     "push",

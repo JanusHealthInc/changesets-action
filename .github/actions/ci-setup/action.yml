@@ -1,0 +1,37 @@
+name: Setup CI
+description: Setup CI
+
+inputs:
+  skip-cache:
+    description: "Whether to skip the cache"
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      with:
+        node-version-file: ".node-version"
+        package-manager-cache: false
+
+    - name: Set up pnpm
+      shell: bash
+      run: npm install --global pnpm@11.1.1 # zizmor: ignore[adhoc-packages] -- Bootstrap the exact packageManager version before the frozen-lockfile install; the pnpm setup action is blocked by organization policy.
+
+    - name: Locate pnpm store
+      if: inputs.skip-cache != 'true'
+      id: pnpm-store
+      shell: bash
+      run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache pnpm store
+      if: inputs.skip-cache != 'true'
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ${{ steps.pnpm-store.outputs.path }}
+        key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

@@ -1,24 +1,92 @@
-name: Node CI
+name: CI
 
-on: [pull_request]
+on:
+  pull_request:
+  # merge queue is required so all commits on target branches trigger this workflow
+  # despite lack of the push event trigger here
+  merge_group:
+    branches:
+      - main
+      - next
+      # merge group rulesets don't allow wildcards so in settings each maintenance branch needs to be added separately
+      - "maintenance/v*" # branch rulesets don't support v[0-9]+
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    timeout-minutes: 20
-
+  lint-workflows:
+    name: Lint workflows
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      actions: read # only required in private repos
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v2
-
-      - name: Use Node.js 16
-        uses: actions/setup-node@v1
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          node-version: 16.x
+          persist-credentials: false
 
-      - name: Install Dependencies
-        run: yarn --frozen-lockfile
+      - name: Run zizmor
+        run: pipx run --spec zizmor==1.30.1 zizmor --persona pedantic --format github .
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/ci-setup
 
       - name: Test
-        run: yarn test
+        run: pnpm test
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/ci-setup
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/ci-setup
+
+      - name: Format
+        run: pnpm format
+
+  ci-ok:
+    name: CI OK
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint-workflows, test, typecheck, lint]
+    steps:
+      - name: Exit with error if some jobs are not successful
+        run: exit 1
+        if: ${{ always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
