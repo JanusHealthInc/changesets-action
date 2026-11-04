@@ -17,7 +17,7 @@ runs:
 
     - name: Set up pnpm
       shell: bash
-      run: npm install --global pnpm@11.1.1
+      run: npm install --global pnpm@11.1.1 # zizmor: ignore[adhoc-packages] -- Bootstrap the exact packageManager version before the frozen-lockfile install; the pnpm setup action is blocked by organization policy.
 
     - name: Locate pnpm store
       if: inputs.skip-cache != 'true'
